@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import os
 from pathlib import Path
 
@@ -171,8 +172,8 @@ def strongarm(params: StrongarmParams) -> h.Module:
             ## Reset pch
             prstp = pch(params.reset)(g=clk, d=out.p, s=VDD, b=VDD)
             prstn = pch(params.reset)(g=clk, d=out.n, s=VDD, b=VDD)
-            prstp2 = pch(params.reset)(g=clk, d=ninp.d, s=VDD, b=VDD)
-            prstn2 = pch(params.reset)(g=clk, d=ninn.d, s=VDD, b=VDD)
+            prstp2 = pch(params.reset)(g=clk, d=ninp_meas.p, s=VDD, b=VDD)
+            prstn2 = pch(params.reset)(g=clk, d=ninn_meas.p, s=VDD, b=VDD)
     
         return StrongArm
     else:
@@ -274,8 +275,8 @@ def ComparatorTb(p: TbParams) -> h.Module:
             v1=0,
             v2=p.pvt.v,
             period=2 * n,
-            rise=1 * PICO,
-            fall=1 * PICO,
+            rise=100 * PICO,
+            fall=100 * PICO,
             width=1 * n,
         )
     )(p=clk, n=tb.VSS)
@@ -326,39 +327,68 @@ def test_comparator_sim():
 
     # Add the PDK dependencies
     ComparatorSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
+    ComparatorSim.literal(".option METHOD=Gear")
 
-    # Run some spice
+    # Run Spice, save important results
     results = ComparatorSim.run(sim_options)
     tran_results = results.an[0].data
-    t = tran_results['time']
-    v_out_diff = tran_results['v(xtop.out_p)'] - tran_results['v(xtop.out_n)']
-    v_in_diff = tran_results['v(xtop.inp_p)'] - tran_results['v(xtop.inp_n)']
-    v_clk = tran_results['v(xtop.clk)'] - tran_results['v(xtop.clk)']
-    i_tail = tran_results['i(v.xtop.xdut.xsa.vtail_meas)']
-    i_inp_pair_cm = tran_results['i(v.xtop.xdut.xsa.vninp_meas)'] +\
-            tran_results['i(v.xtop.xdut.xsa.vninn_meas)']
-    i_latch_n_pair_cm = tran_results['i(v.xtop.xdut.xsa.vnlatn_meas)'] +\
-            tran_results['i(v.xtop.xdut.xsa.vnlatp_meas)']
-    i_latch_p_pair_cm = tran_results['i(v.xtop.xdut.xsa.vplatn_meas)'] +\
-            tran_results['i(v.xtop.xdut.xsa.vplatp_meas)']
-    v_casc_cm =  (tran_results['v(xtop.xdut.xsa.ninn_meas_p)'] +
-            tran_results['v(xtop.xdut.xsa.ninp_meas_p)']) / 2
-    v_out_cm =  (tran_results['v(xtop.xdut.sout_p)'] +
-            tran_results['v(xtop.xdut.sout_n)']) / 2
-    
+    np.savez('strongarm_results.npz', 
+        t = tran_results['time'],
+        v_out_diff = tran_results['v(xtop.out_p)'] - tran_results['v(xtop.out_n)'],
+        v_in_diff = tran_results['v(xtop.inp_p)'] - tran_results['v(xtop.inp_n)'],
+        v_clk = tran_results['v(xtop.clk)'],
+        i_tail = tran_results['i(v.xtop.xdut.xsa.vtail_meas)'],
+        i_inp_pair_cm = tran_results['i(v.xtop.xdut.xsa.vninp_meas)'] +\
+                tran_results['i(v.xtop.xdut.xsa.vninn_meas)'],
+        i_latch_n_pair_cm = tran_results['i(v.xtop.xdut.xsa.vnlatn_meas)'] +\
+                tran_results['i(v.xtop.xdut.xsa.vnlatp_meas)'],
+        i_latch_p_pair_cm = tran_results['i(v.xtop.xdut.xsa.vplatn_meas)'] +\
+                tran_results['i(v.xtop.xdut.xsa.vplatp_meas)'],
+        v_casc_cm =  (tran_results['v(xtop.xdut.xsa.ninn_meas_p)'] +
+                tran_results['v(xtop.xdut.xsa.ninp_meas_p)']) / 2,
+        v_out_cm =  (tran_results['v(xtop.xdut.sout_p)'] +
+                tran_results['v(xtop.xdut.sout_n)']) / 2,
+    )
+
+
+def extract_windows(t, clk, threshold):
+    """ Given the clock waveform, this will extract a bunch of single periods
+    that are the periods at which a certain clock starts and ends """
+    clk_above_thres_idcs = np.where(clk > threshold)[0]
+    print(clk_above_thres_idcs.shape)
+    print(np.diff(clk_above_thres_idcs))
+    rising_cross_idcs = clk_above_thres_idcs[np.where(
+        np.diff(np.concatenate(
+            ([0], clk_above_thres_idcs), axis=0)) > 1)[0]]
+    rising_cross_idcs = rising_cross_idcs.tolist() + [len(clk)]
+    return [(s,e) for s, e in zip(rising_cross_idcs[:-1], rising_cross_idcs[1:])]
+
+
+def plot_windows():
+    data = np.load('strongarm_results.npz')
+    windows = extract_windows(data['t'], data['v_clk'], 0.7)
+    for (s, e) in windows:
+        plt.figure()
+        plt.plot(data['t'][s:e], data['v_clk'][s:e])
+    plt.show()
+
+
+def plot_data():
+    data = np.load('strongarm_results.npz')
+    t = data['t']
     fig, ax = plt.subplots(3, sharex=True)
-    ax[0].plot(t, v_clk)
-    ax[1].plot(t, v_in_diff)
-    ax[2].plot(t, v_out_diff)
+    ax[0].plot(t, data['v_clk'])
+    ax[1].plot(t, data['v_in_diff'])
+    ax[2].plot(t, data['v_out_diff'])
     fig, ax = plt.subplots(3, sharex=True)
-    ax[0].plot(t, v_clk)
-    ax[1].plot(t, i_tail, label='tail current')
-    ax[1].plot(t, i_inp_pair_cm, label='input pair current')
-    ax[1].plot(t, i_latch_n_pair_cm, label='Latch NMOS current')
-    ax[1].plot(t, i_latch_p_pair_cm, label='Latch PMOS current')
+    ax[0].plot(t, data['v_clk'])
+    ax[1].plot(t, data['i_tail'], label='tail current')
+    ax[1].plot(t, data['i_inp_pair_cm'], label='input pair current')
+    ax[1].plot(t, data['i_latch_n_pair_cm'], label='Latch NMOS current')
+    ax[1].plot(t, data['i_latch_p_pair_cm'], label='Latch PMOS current')
     ax[1].legend()
-    ax[2].plot(t, v_casc_cm, label='v_casc_cm')
-    ax[2].plot(t, v_out_cm, label='v_out_cm')
+    ax[2].plot(t, data['v_casc_cm'], label='v_casc_cm')
+    ax[2].plot(t, data['v_out_cm'], label='v_out_cm')
     ax[2].legend()
 
     plt.show()
@@ -366,4 +396,6 @@ def test_comparator_sim():
 
 
 if __name__ == '__main__':
-    test_comparator_sim()
+    # test_comparator_sim()
+    # plot_data()
+    plot_windows()
