@@ -555,45 +555,45 @@ class TelescopicAmpParams:
 @h.generator
 def create_module(params: TelescopicAmpParams) -> h.Module:
     
-    @h.module
-    class TelescopicAmp:
+    if params.in_type == 'nch':
+        mos_in = nch
+    elif params.in_type == 'nch_lvt':
+        mos_in = nch_lvt
+    elif params.in_type == 'pch':
+        mos_in = pch
+    elif params.in_type == 'pch_lvt':
+        mos_in = pch_lvt
         
-        VDD, VSS = h.Ports(2)
-        v_in = Diff(port=True, role=Diff.Roles.SINK)
-        v_out = Diff(port=True, role=Diff.Roles.SOURCE)
-        v_tail = h.Input()
-        v_load = h.Input()
-        v_pcasc = h.Input()
-        v_ncasc = h.Input()
+    if params.load_type == 'nch':
+        mos_load = nch
+    elif params.load_type == 'nch_lvt':
+        mos_load = nch_lvt
+    elif params.load_type == 'pch':
+        mos_load = pch
+    elif params.load_type == 'pch_lvt':
+        mos_load = pch_lvt
         
-        if params.in_type == 'nch':
-            mos_in = nch
-        elif params.in_type == 'nch_lvt':
-            mos_in = nch_lvt
-        elif params.in_type == 'pch':
-            mos_in = pch
-        elif params.in_type == 'pch_lvt':
-            mos_in = pch_lvt
+    if params.tail_type == 'nch':
+        mos_tail = nch
+    elif params.tail_type == 'nch_lvt':
+        mos_tail = nch_lvt
+    elif params.tail_type == 'pch':
+        mos_tail = pch
+    elif params.tail_type == 'pch_lvt':
+        mos_tail = pch_lvt
+        
+    if params.in_type == 'nch' or params.in_type == 'nch_lvt':
+        @h.module
+        class TelescopicAmp:
             
-        if params.load_type == 'nch':
-            mos_load = nch
-        elif params.load_type == 'nch_lvt':
-            mos_load = nch_lvt
-        elif params.load_type == 'pch':
-            mos_load = pch
-        elif params.load_type == 'pch_lvt':
-            mos_load = pch_lvt
+            VDD, VSS = h.Ports(2)
+            v_in = Diff(port=True, role=Diff.Roles.SINK)
+            v_out = Diff(port=True, role=Diff.Roles.SOURCE)
+            v_tail = h.Input()
+            v_load = h.Input()
+            v_pcasc = h.Input()
+            v_ncasc = h.Input()
             
-        if params.tail_type == 'nch':
-            mos_tail = nch
-        elif params.tail_type == 'nch_lvt':
-            mos_tail = nch_lvt
-        elif params.tail_type == 'pch':
-            mos_tail = pch
-        elif params.tail_type == 'pch_lvt':
-            mos_tail = pch_lvt
-        
-        if params.in_type == 'nch' or params.in_type == 'nch_lvt':
             ## Tail Device
             m_tail = mos_tail(params.tail_params)(g=v_tail,s=VSS,b=VSS)
             
@@ -613,7 +613,19 @@ def create_module(params: TelescopicAmpParams) -> h.Module:
             m_load_casc_p = mos_load(params.load_casc_pair_params)(g=v_pcasc, s=m_load_base_p.d, d=v_out.n, b=VDD)
             m_load_casc_n = mos_load(params.load_casc_pair_params)(g=v_pcasc, s=m_load_base_n.d, d=v_out.p, b=VDD)
             
-        elif params.load_type == 'pch' or params.load_type == 'pch_lvt':
+        return TelescopicAmp
+    
+    elif params.load_type == 'pch' or params.load_type == 'pch_lvt':
+        @h.module
+        class TelescopicAmp:
+            VDD, VSS = h.Ports(2)
+            v_in = Diff(port=True, role=Diff.Roles.SINK)
+            v_out = Diff(port=True, role=Diff.Roles.SOURCE)
+            v_tail = h.Input()
+            v_load = h.Input()
+            v_pcasc = h.Input()
+            v_ncasc = h.Input()
+            
             ## Tail Device
             m_tail = mos_tail(params.tail_params)(g=v_tail,s=VDD,b=VDD)
             
@@ -633,7 +645,7 @@ def create_module(params: TelescopicAmpParams) -> h.Module:
             m_load_casc_p = mos_load(params.load_casc_pair_params)(g=v_ncasc, s=m_load_base_p.d, d=v_out.n, b=VSS)
             m_load_casc_n = mos_load(params.load_casc_pair_params)(g=v_ncasc, s=m_load_base_n.d, d=v_out.p, b=VSS)
             
-    return TelescopicAmp
+        return TelescopicAmp
 
 @h.paramclass
 class DiffClkParams:
