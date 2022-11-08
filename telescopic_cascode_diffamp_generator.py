@@ -15,8 +15,8 @@ import hdl21.sim as hs
 from hdl21 import Diff
 from hdl21.pdk import Corner
 from hdl21.sim import Sim, LogSweep
-from hdl21.prefix import m, µ, f, n, PICO
-from hdl21.primitives import Vdc, Idc, C, Vpulse
+from hdl21.prefix import m, µ, f, n, PICO, G, KILO, Prefixed
+from hdl21.primitives import Vdc, Idc, C, Vpulse, R, Vcvs
 from vlsirtools.spice import SimOptions, SupportedSimulators, ResultFormat
 
 import nest_asyncio
@@ -31,26 +31,26 @@ class MosParams:
 CONDA_PREFIX = os.environ.get("CONDA_PREFIX", None)
 
 sim_options = SimOptions(
-    rundir=Path("./scratch"),
+    rundir=Path("./scratch2"),
     fmt=ResultFormat.SIM_DATA,
     simulator=SupportedSimulators.NGSPICE,
 )
 
 nch = h.ExternalModule(
     name="sky130_fd_pr__nfet_01v8", desc="Sky130 NMOS", 
-    port_list=[h.Inout(name="D"), h.Inout(name="G"), h.Inout(name="S"), h.Inout(name="B")], 
+    port_list=[h.Inout(name="d"), h.Inout(name="g"), h.Inout(name="s"), h.Inout(name="b")], 
     paramtype=MosParams)
 nch_lvt = h.ExternalModule(
     name="sky130_fd_pr__nfet_01v8_lvt", desc="Sky130 NMOS LVT", 
-    port_list=[h.Inout(name="D"), h.Inout(name="G"), h.Inout(name="S"), h.Inout(name="B")], 
+    port_list=[h.Inout(name="d"), h.Inout(name="g"), h.Inout(name="s"), h.Inout(name="b")], 
     paramtype=MosParams)
 pch = h.ExternalModule(
     name="sky130_fd_pr__pfet_01v8", desc="Sky130 PMOS", 
-    port_list=[h.Inout(name="D"), h.Inout(name="G"), h.Inout(name="S"), h.Inout(name="B")], 
+    port_list=[h.Inout(name="d"), h.Inout(name="g"), h.Inout(name="s"), h.Inout(name="b")], 
     paramtype=MosParams)
 pch_lvt = h.ExternalModule(
     name="sky130_fd_pr__pfet_01v8_lvt", desc="Sky130 PMOS LVT", 
-    port_list=[h.Inout(name="D"), h.Inout(name="G"), h.Inout(name="S"), h.Inout(name="B")], 
+    port_list=[h.Inout(name="d"), h.Inout(name="g"), h.Inout(name="s"), h.Inout(name="b")], 
     paramtype=MosParams)
 
 def query_db(database,varname,mos_type,lch,vbs,vgs,vds):
@@ -306,7 +306,7 @@ def design_load(database,amp_specs,gen_params,input_op):
         load_type = 'pch'
         vs = vdd
         vb = vdd
-        casc_bias_list = np.arange(0.1, voutcm + casc_bias_step / 2, casc_bias_step)
+        casc_bias_list = np.arange(0.5, voutcm + casc_bias_step / 2, casc_bias_step)
         vgs_base_max = -0.1
         vgs_base_min = -1.5
         vds_base_lim_0 = -vstar_in
@@ -317,7 +317,7 @@ def design_load(database,amp_specs,gen_params,input_op):
         load_type = 'nch'
         vs = 0
         vb = 0
-        casc_bias_list = np.arange(voutcm, vdd - 0.1 + casc_bias_step / 2, casc_bias_step)
+        casc_bias_list = np.arange(voutcm, vdd - 0.5 + casc_bias_step / 2, casc_bias_step)
         vgs_base_min = 0.1
         vgs_base_max = 1.5
         vds_base_lim_0 = vstar_in
@@ -415,9 +415,9 @@ def design_load(database,amp_specs,gen_params,input_op):
                             cdd_load = cdd_load,
                             metric_load = metric_best,
                             )
-                        print("New GBW/I Best = %f" % (metric_best))
+                        print("New GBW/I Best = %f MHz/µA" % (round(metric_best/1e12,2)))
                         print("Updated Av Best = %f" % (gain_cur))
-                        print("Updated BW Best = %f" % (bw_cur))
+                        print("Updated BW Best = %f MHz" % (round(bw_cur/1e6,2)))
                 
     return best_load_op
 
@@ -546,10 +546,11 @@ class TelescopicAmpParams:
     in_type = h.Param(dtype=str, desc="Input MOS type")
     load_type = h.Param(dtype=str, desc="Load MOS type")
     tail_type = h.Param(dtype=str, desc="Tail MOS type")
-    v_load = h.Param(dtype=float, desc="Load MOS Bias")
-    v_pcasc = h.Param(dtype=float, desc="PMOS Cascode Device Bias")
-    v_ncasc = h.Param(dtype=float, desc="NMOS Cascode Device Bias")
-    v_tail = h.Param(dtype=float, desc="Tail MOS Bias")
+    voutcm_ideal = h.Param(dtype=Prefixed, desc="Ideal Output CM")
+    v_load = h.Param(dtype=Prefixed, desc="Load MOS Bias")
+    v_pcasc = h.Param(dtype=Prefixed, desc="PMOS Cascode Device Bias")
+    v_ncasc = h.Param(dtype=Prefixed, desc="NMOS Cascode Device Bias")
+    v_tail = h.Param(dtype=Prefixed, desc="Tail MOS Bias")
 
 
 @h.generator
@@ -706,25 +707,29 @@ class TbParams:
     vd = h.Param(dtype=h.Prefixed, desc="Differential Voltage (V)", default=1 * m)
     vc = h.Param(dtype=h.Prefixed, desc="Common-Mode Voltage (V)", default=1200 * m)
     cl = h.Param(dtype=h.Prefixed, desc="Load Cap (Single-Ended) (F)", default=1.2 * PICO)
+    rcm = h.Param(dtype=h.Prefixed, desc="Common Mode Sensing Resistor (Ω)", default = 1 * G)
+    CMFB_gain = h.Param(dtype=h.Prefixed, desc="Common Mode Feedback Gain (V/V)", default = 1 * KILO)
 
 @h.generator
 def AmplifierTb(params: TbParams) -> h.Module:
     
     tb = h.sim.tb("TelescopicAmplifierTb")
     tb.VDD = VDD = h.Signal()
-    tb.vvdd = Vdc(Vdc.Params(dc=params.pvt.v))(p=VDD, n=tb.VSS)
+    tb.vvdd = Vdc(Vdc.Params(dc=params.pvt.v,ac=(0*m)))(p=VDD, n=tb.VSS)
     
     tb.v_tail = h.Signal()
-    tb.v_tail_src = Vdc(Vdc.Params(dc=params.dut.v_tail))(p=tb.v_tail, n=tb.VSS)
+    tb.v_tail_src = Vdc(Vdc.Params(dc=(params.dut.v_tail),ac=(0*m)))(p=tb.v_tail, n=tb.VSS)
     
     tb.v_pcasc = h.Signal()
-    tb.v_pcasc_src = Vdc(Vdc.Params(dc=params.dut.v_pcasc))(p=tb.v_pcasc, n=tb.VSS)
+    tb.v_pcasc_src = Vdc(Vdc.Params(dc=(params.dut.v_pcasc),ac=(0*m)))(p=tb.v_pcasc, n=tb.VSS)
     
     tb.v_ncasc = h.Signal()
-    tb.v_ncasc_src = Vdc(Vdc.Params(dc=params.dut.v_ncasc))(p=tb.v_ncasc, n=tb.VSS)
+    tb.v_ncasc_src = Vdc(Vdc.Params(dc=(params.dut.v_ncasc),ac=(0*m)))(p=tb.v_ncasc, n=tb.VSS)
     
     tb.v_load = h.Signal()
-    tb.v_load_src = Vdc(Vdc.Params(dc=params.dut.v_load))(p=tb.v_load, n=tb.VSS)
+    tb.voutcm_ideal = h.Signal()
+    # tb.v_load_src = Vdc(Vdc.Params(dc=str(params.dut.v_load)))(p=tb.v_load, n=tb.VSS)
+    tb.v_outcm_ideal_src = Vdc(Vdc.Params(dc=(params.dut.voutcm_ideal),ac=(0*m)))(p=tb.voutcm_ideal, n=tb.VSS)
     
     # Input-driving balun
     tb.inp = Diff()
@@ -734,9 +739,14 @@ def AmplifierTb(params: TbParams) -> h.Module:
     
     # Output & Load Caps
     tb.out = Diff()
+    tb.CMSense = h.Signal()
     Cload = C(C.Params(c=params.cl))
+    Rload = R(R.Params(r=params.rcm))
     tb.clp = Cload(p=tb.out.p, n=tb.VSS)
     tb.cln = Cload(p=tb.out.n, n=tb.VSS)
+    tb.rcmp = Rload(p=tb.out.p, n=tb.CMSense)
+    tb.rcmn = Rload(p=tb.out.n, n=tb.CMSense)
+    tb.cmfb_src = Vcvs(Vcvs.Params(gain=params.CMFB_gain))(p=tb.v_load, n=tb.VSS, cp=tb.CMSense, cn=tb.voutcm_ideal)
     
     # Create the Telescopic Amplifier DUT
     tb.dut = create_module(params.dut)(
@@ -756,7 +766,7 @@ def run_main():
     nch_db_filename = "database.npy"
     nch_lvt_db_filename = "database_nch_lvt.npy"
     pch_db_filename = "database.npy"
-    pch_lvt_db_filename = "database.npy"
+    pch_lvt_db_filename = "database_pch_lvt.npy"
 
     amp_specs = dict(
         in_type='nch_lvt',
@@ -769,8 +779,8 @@ def run_main():
         vincm=1.1,
         voutcm=0.9,
         vds_tail_min=0.25,
-        gain_min=100,
-        bw_min=20e6,
+        gain_min=60,
+        bw_min=10e6,
         vnoise_input_referred=10e-9,
         )
     
@@ -847,38 +857,50 @@ def run_main():
         v_tail = tail_op['vbias_tail']
     
     ampParams=TelescopicAmpParams(
-        in_base_pair_params = MosParams(w=0.5, l=gen_params['lch_in'], nf=int(np.round(amplifier_op['scale_in_base']))),
-        in_casc_pair_params = MosParams(w=0.5, l=gen_params['lch_in'], nf=int(np.round(amplifier_op['scale_in_casc']))),
-        load_base_pair_params = MosParams(w=0.5, l=gen_params['lch_load'], nf=int(np.round(amplifier_op['scale_load_base']))),
-        load_casc_pair_params = MosParams(w=0.5, l=gen_params['lch_load'], nf=int(np.round(amplifier_op['scale_load_casc']))),
-        tail_params = MosParams(w=0.5, l=gen_params['lch_tail'], nf=int(np.round(tail_op['scale_tail']))),
+        in_base_pair_params = MosParams(w=0.5 * (amplifier_op['scale_in_base']), l=gen_params['lch_in'], nf=int(np.round(amplifier_op['scale_in_base']))),
+        in_casc_pair_params = MosParams(w=0.5 * (amplifier_op['scale_in_casc']), l=gen_params['lch_in'], nf=int(np.round(amplifier_op['scale_in_casc']))),
+        load_base_pair_params = MosParams(w=0.5 * (amplifier_op['scale_load_base']), l=gen_params['lch_load'], nf=int(np.round(amplifier_op['scale_load_base']))),
+        load_casc_pair_params = MosParams(w=0.5 * (amplifier_op['scale_load_casc']), l=gen_params['lch_load'], nf=int(np.round(amplifier_op['scale_load_casc']))),
+        tail_params = MosParams(w=0.5 * (tail_op['scale_tail']), l=gen_params['lch_tail'], nf=int(np.round(tail_op['scale_tail']))),
         in_type = amp_specs['in_type'],
         load_type = amp_specs['load_type'],
         tail_type = amp_specs['tail_type'],
-        v_load = v_load,
-        v_pcasc = v_pcasc,
-        v_ncasc = v_ncasc,
-        v_tail = v_tail,
+        voutcm_ideal = amp_specs['voutcm'] * 1000 * m,
+        v_load = v_load * 1000 * m,
+        v_pcasc = v_pcasc * 1000 * m,
+        v_ncasc = v_ncasc * 1000 * m,
+        v_tail = v_tail * 1000 * m,
     )
+    
+
     params = TbParams(pvt=Pvt(), vc=amp_specs['vincm'] * 1000 * m, vd=1 * m, dut=ampParams)
 
     # Create our simulation input
     @hs.sim
     class TelescopicAmplifierSim:
         tb = AmplifierTb(params)
-        tr = hs.Tran(tstop=100 * µ, tstep=10*n)
+        tr = hs.Tran(tstop=100 * µ, tstep=100*n)
 
     # Add the PDK dependencies
     TelescopicAmplifierSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
+    TelescopicAmplifierSim.literal(".save all")
     results = TelescopicAmplifierSim.run(sim_options)
     tran_results = results.an[0].data
     t = tran_results['time']
     v_out_diff = tran_results['v(xtop.out_p)'] - tran_results['v(xtop.out_n)']
+    v_out_cm = (tran_results['v(xtop.out_p)'] + tran_results['v(xtop.out_n)'])/2
     v_in_diff = tran_results['v(xtop.inp_p)'] - tran_results['v(xtop.inp_n)']
+    v_in_cm = (tran_results['v(xtop.inp_p)'] + tran_results['v(xtop.inp_n)'])/2
     
     fig, ax = plt.subplots(2, sharex=True)
     ax[0].plot(t, v_in_diff)
     ax[1].plot(t, v_out_diff)
+    
+    plt.show()
+    
+    fig, ax = plt.subplots(2, sharex=True)
+    ax[0].plot(t, v_in_cm)
+    ax[1].plot(t, v_out_cm)
     
     plt.show()
     breakpoint()
