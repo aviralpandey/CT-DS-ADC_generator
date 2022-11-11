@@ -281,12 +281,6 @@ def design_input(database,amp_specs,gen_params):
     return input_op
 
 def design_load(database,amp_specs,gen_params,input_op):
-    """Design load.
-
-    Sweep vgs.  For each vgs, compute gain and max bandwidth.  If
-    both gain and BW specs are met, pick operating point that maximizes
-    gamma_r * gm_r
-    """
     vdd = amp_specs['vdd']
     vstar_in = amp_specs['vstar_in']
     voutcm = amp_specs['voutcm']
