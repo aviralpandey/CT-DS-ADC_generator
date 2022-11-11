@@ -5,11 +5,7 @@
 		"dockerfile": "Dockerfile"
 	},
 	"features": {
-		"ghcr.io/devcontainers/features/conda:1": {},
 		"ghcr.io/devcontainers/features/sshd:1": {},
-		"ghcr.io/devcontainers-contrib/features/black:1": {},
-		"ghcr.io/devcontainers-contrib/features/poetry:1": {},
-		"ghcr.io/devcontainers-contrib/features/pre-commit:1": {},
 		"ghcr.io/guiyomh/features/vim:0": {}
 	}
 
