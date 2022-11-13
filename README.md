@@ -16,6 +16,7 @@ git clone git@github.com:Vlsir/Vlsir.git
 cd Vlsir
 git checkout 2079c44fd7b34023c737a7c01ea624b50289524f
 cd ..
+python scripts/manage.py install 
 
 conda install -y poetry
 conda upgrade pip
