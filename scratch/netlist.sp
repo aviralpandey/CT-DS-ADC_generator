@@ -4,14 +4,14 @@
 * Written by SpiceNetlister
 * 
 
-.SUBCKT CommonSource_e46bce81272b203318dfe064ef514e9e_ 
+.SUBCKT CommonSource_1e4f9b44d45e0416f9135fadc4dd89e0_ 
 + VSS VDD vin vout 
 * No parameters
 
 xnmos 
 + vout vin VSS VSS 
 + sky130_fd_pr__nfet_01v8 
-+ w='"1"' l='"0.15"' nf='1' mult='1' 
++ w='1' l='150m' nf='1' mult='1' 
 
 rres 
 + VDD vout 
@@ -37,7 +37,7 @@ vvin_src
 
 xdut 
 + VSS VDD vin vout 
-+ CommonSource_e46bce81272b203318dfe064ef514e9e_ 
++ CommonSource_1e4f9b44d45e0416f9135fadc4dd89e0_ 
 * No parameters
 
 

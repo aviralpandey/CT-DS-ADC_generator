@@ -74,5 +74,7 @@ def get_amp_performance(amp: h.Module) -> Tuple[float, float]:
 
 if __name__ == "__main__":
     get_amp_performance(
-        common_source_amp_gen(CommonSourceParams(MosParams(w=1, l=0.15, nf=1), 1e3))
+        common_source_amp_gen(
+            CommonSourceParams(MosParams(w=1 * UNIT, l=150 * m, nf=1), 1e3)
+        )
     )

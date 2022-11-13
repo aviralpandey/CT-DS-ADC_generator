@@ -7,7 +7,6 @@ import scipy.interpolate
 import scipy.optimize as sciopt
 import matplotlib.pyplot as plt
 
-import os
 from pathlib import Path
 
 import hdl21 as h
@@ -19,16 +18,20 @@ from hdl21.prefix import m, µ, f, n, PICO, G, KILO, Prefixed
 from hdl21.primitives import Vdc, Idc, C, Vpulse, R, Vcvs
 from vlsirtools.spice import SimOptions, SupportedSimulators, ResultFormat
 
+# Import the Hdl21 PDK package, and our "site" configuration of its installation
+import sitepdks as _
+import sky130
+
+# And give a few shorthand names to PDK content
+MosParams = sky130.Sky130MosParams
+nch = sky130.modules.sky130_fd_pr__nfet_01v8
+nch_lvt = sky130.modules.sky130_fd_pr__nfet_01v8_lvt
+pch = sky130.modules.sky130_fd_pr__pfet_01v8
+pch_lvt = sky130.modules.sky130_fd_pr__pfet_01v8_lvt
+
 import nest_asyncio
 nest_asyncio.apply()
 
-@h.paramclass
-class MosParams:
-    w = h.Param(dtype=float, desc="Channel Width")
-    l = h.Param(dtype=float, desc="Channel Length")
-    nf = h.Param(dtype=int, desc="Number of fingers")
-
-CONDA_PREFIX = os.environ.get("CONDA_PREFIX", None)
 
 sim_options = SimOptions(
     rundir=Path("./scratch2"),
@@ -36,22 +39,6 @@ sim_options = SimOptions(
     simulator=SupportedSimulators.NGSPICE,
 )
 
-nch = h.ExternalModule(
-    name="sky130_fd_pr__nfet_01v8", desc="Sky130 NMOS", 
-    port_list=[h.Inout(name="d"), h.Inout(name="g"), h.Inout(name="s"), h.Inout(name="b")], 
-    paramtype=MosParams)
-nch_lvt = h.ExternalModule(
-    name="sky130_fd_pr__nfet_01v8_lvt", desc="Sky130 NMOS LVT", 
-    port_list=[h.Inout(name="d"), h.Inout(name="g"), h.Inout(name="s"), h.Inout(name="b")], 
-    paramtype=MosParams)
-pch = h.ExternalModule(
-    name="sky130_fd_pr__pfet_01v8", desc="Sky130 PMOS", 
-    port_list=[h.Inout(name="d"), h.Inout(name="g"), h.Inout(name="s"), h.Inout(name="b")], 
-    paramtype=MosParams)
-pch_lvt = h.ExternalModule(
-    name="sky130_fd_pr__pfet_01v8_lvt", desc="Sky130 PMOS LVT", 
-    port_list=[h.Inout(name="d"), h.Inout(name="g"), h.Inout(name="s"), h.Inout(name="b")], 
-    paramtype=MosParams)
 
 def query_db(database,varname,mos_type,lch,vbs,vgs,vds):
     
@@ -852,11 +839,11 @@ def run_main():
         v_tail = tail_op['vbias_tail']
     
     ampParams=TelescopicAmpParams(
-        in_base_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_in_base'])), l=gen_params['lch_in'], nf=int(np.round(amplifier_op['scale_in_base']))),
-        in_casc_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_in_casc'])), l=gen_params['lch_in'], nf=int(np.round(amplifier_op['scale_in_casc']))),
-        load_base_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_load_base'])), l=gen_params['lch_load'], nf=int(np.round(amplifier_op['scale_load_base']))),
-        load_casc_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_load_casc'])), l=gen_params['lch_load'], nf=int(np.round(amplifier_op['scale_load_casc']))),
-        tail_params = MosParams(w= 500 * m * int(np.round(tail_op['scale_tail'])), l=gen_params['lch_tail'], nf=int(np.round(tail_op['scale_tail']))),
+        in_base_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_in_base'])), l=h.Prefixed(gen_params['lch_in']), nf=int(np.round(amplifier_op['scale_in_base']))),
+        in_casc_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_in_casc'])), l=h.Prefixed(gen_params['lch_in']), nf=int(np.round(amplifier_op['scale_in_casc']))),
+        load_base_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_load_base'])), l=h.Prefixed(gen_params['lch_load']), nf=int(np.round(amplifier_op['scale_load_base']))),
+        load_casc_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_load_casc'])), l=h.Prefixed(gen_params['lch_load']), nf=int(np.round(amplifier_op['scale_load_casc']))),
+        tail_params = MosParams(w= 500 * m * int(np.round(tail_op['scale_tail'])), l=h.Prefixed(gen_params['lch_tail']), nf=int(np.round(tail_op['scale_tail']))),
         in_type = amp_specs['in_type'],
         load_type = amp_specs['load_type'],
         tail_type = amp_specs['tail_type'],
@@ -878,7 +865,7 @@ def run_main():
 
     # Add the PDK dependencies
     # TelescopicAmplifierSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
-    TelescopicAmplifierSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
+    TelescopicAmplifierSim.lib(sky130.install.model_lib, 'tt')
     TelescopicAmplifierSim.literal(".save all")
     results = TelescopicAmplifierSim.run(sim_options)
     tran_results = results.an[0].data
