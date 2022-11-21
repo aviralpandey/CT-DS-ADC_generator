@@ -142,7 +142,7 @@ def query_db_for_function(database,varname,mos_type,lch):
     return interp
     
 
-def design_input(database,amp_specs,gen_params):
+def stage1_telescopic_amplifier_design_input(database,amp_specs,gen_params):
 
     """Find operating point that meets the given vstar spec."""
     vdd = amp_specs['vdd']
@@ -195,6 +195,7 @@ def design_input(database,amp_specs,gen_params):
     vgs_best = None
     casc_scale_best = None
     Av_best = 0 
+    metric_best = 0
     
     for vds_in in vds_in_val_list:
         
@@ -243,7 +244,11 @@ def design_input(database,amp_specs,gen_params):
             cgg_casc = query_db(database, 'cgg',in_type,lch_in,vbs_casc,vgs_casc,vds_casc)*casc_scale
             cgg_in = query_db(database,'cgg',in_type,lch_in,vbs_in,vgs_in,vds_in)
             
-            if Av_cur > Av_best:
+            bw_cur = gm_in / (cgg_casc * gen_params['cdd_cgg_ratio'])
+            metric_cur = Av_cur * bw_cur
+            
+            if Av_cur > (amp_specs['input_stage_gain_min']) and metric_cur > metric_best:
+                metric_best = metric_cur
                 Av_best = Av_cur
                 vgs_best = vgs_in
                 casc_scale_best = casc_scale
@@ -280,21 +285,30 @@ def design_input(database,amp_specs,gen_params):
     
     return input_op
 
-def design_load(database,amp_specs,gen_params,input_op):
+def stage1_telescopic_amplifier_design_load(database,amp_specs,gen_params,input_op):
+    """Design load.
+
+    Sweep vgs.  For each vgs, compute gain and max bandwidth.  If
+    both gain and BW specs are met, pick operating point that maximizes
+    gamma_r * gm_r
+    """
     vdd = amp_specs['vdd']
     vstar_in = amp_specs['vstar_in']
     voutcm = amp_specs['voutcm']
     vgs_res = gen_params['vgs_sweep_res']
     gain_min = amp_specs['gain_min']
-    bw_min = amp_specs['bw_min']
+    bw_min = max(amp_specs['selfbw_min'],amp_specs['bw_min'])
     casc_scale_max = gen_params['casc_scale_max']
     casc_scale_step = gen_params['casc_scale_step']
     casc_bias_step = gen_params['casc_bias_step']
     vds_sweep_res = gen_params['vds_sweep_res']
     in_type = amp_specs['in_type']
     load_type = amp_specs['load_type']
-    
     lch_load = gen_params['lch_load']
+    best_load_op = None
+    metric_best = 0
+    gain_max = 0
+    bw_max = 0
     
     casc_scale_list = np.arange(1, casc_scale_max + casc_scale_step / 2, casc_scale_step)
     if in_type == 'nch' or in_type == 'nch_lvt':
@@ -318,103 +332,106 @@ def design_load(database,amp_specs,gen_params,input_op):
         num_vds_points = int(np.ceil((vds_base_lim_1 - vds_base_lim_0) / vds_sweep_res)) + 1
         vds_base_val_list = np.linspace(vds_base_lim_0, vds_base_lim_1, num_vds_points, endpoint=True)
         
-    gm_fun = query_db_for_function(database,'gm',load_type,lch_load)
-    gds_fun = query_db_for_function(database,'gds',load_type,lch_load)
-    cgg_fun = query_db_for_function(database,'cgg',load_type,lch_load)
-    gamma = gen_params['gamma']
-    ib_fun = query_db_for_function(database,'ids',load_type,lch_load)
-    
-    num_points = int(np.ceil((vgs_base_max - vgs_base_min) / vgs_res)) + 1
-    
-    gm_in_base = input_op['gm_in']
-    gm_in_casc = input_op['gm_casc']
-    gds_in_base = input_op['gds_in']
-    gds_in_casc = input_op['gds_casc']
-    ibias_in = input_op['ibias']
-    gds_in = input_op['gds_in']
-    cgg_in = input_op['cgg_casc']
-    cdd_in = cgg_in * gen_params['cdd_cgg_ratio']
-    
-    def vgs_base_search_fun(vgs_base, vcasc_mid, casc_scale, vg_casc, vsource):
-        vgs_casc = vg_casc - vcasc_mid
-        vds_casc = voutcm - vcasc_mid
-        vbs_casc = vb - vcasc_mid
-        vds_base = vcasc_mid - vsource
-        vbs_base = 0
+    for lch_load in gen_params['lch_load']:
+        gm_fun = query_db_for_function(database,'gm',load_type,lch_load)
+        gds_fun = query_db_for_function(database,'gds',load_type,lch_load)
+        cgg_fun = query_db_for_function(database,'cgg',load_type,lch_load)
+        gamma = gen_params['gamma']
+        ib_fun = query_db_for_function(database,'ids',load_type,lch_load)
         
-        ids_casc = ib_fun([vbs_casc,vgs_casc,vds_casc])[0]*casc_scale
-        ids_base = ib_fun([vbs_base,vgs_base,vds_base])[0]
+        num_points = int(np.ceil((vgs_base_max - vgs_base_min) / vgs_res)) + 1
         
-        return ids_casc - ids_base
-    
-    best_ans = None
-    metric_best = 0
-    gain_max = 0
-    bw_max = 0
-    bot_gain_max = 0
-    
-    for vds_base in vds_base_val_list:
-        vcasc_mid = vs + vds_base
-        for casc_scale in casc_scale_list:
-            for casc_bias in casc_bias_list:
-                try:
-                    vgs_base = sciopt.brentq(vgs_base_search_fun, vgs_base_min, vgs_base_max, args=(vcasc_mid,casc_scale,casc_bias,vs,))
-                except ValueError:
-                    continue
-                vgs_casc = casc_bias - vcasc_mid
-                vds_casc = voutcm - vcasc_mid
-                vbs_casc = vb - vcasc_mid
-                vds_base = vcasc_mid - vs
-                vbs_base = 0
-                
-                ibias_base = ib_fun([vbs_base,vgs_base,vds_base])[0]
-                load_scale = ibias_in/ibias_base
-                
-                gm_base = gm_fun([vbs_base,vgs_base,vds_base])[0]
-                gds_base = gds_fun([vbs_base,vgs_base,vds_base])[0]
-                cdd_base = cgg_fun([vbs_base,vgs_base,vds_base])[0] * gen_params['cdd_cgg_ratio']
-                
-                gm_casc = gm_fun([vbs_casc,vgs_casc,vds_casc])[0] * casc_scale
-                gds_casc = gds_fun([vbs_casc,vgs_casc,vds_casc])[0] * casc_scale
-                cdd_casc = cgg_fun([vbs_casc,vgs_casc,vds_casc])[0] * gen_params['cdd_cgg_ratio'] * casc_scale
-                
-                gm_load = gm_base * load_scale
-                gds_load = gds_base * gds_casc / (gds_base + gds_casc + gm_casc) * load_scale
-                cdd_load = cdd_casc * load_scale
-                
-                bw_cur = (gds_load + gds_in) / (cdd_load + cdd_in) / 2 / np.pi
-                gain_cur = gm_in_base / (gds_load + gds_in)
-                
-                metric_cur = gain_cur * bw_cur / ibias_in
-                
-                if load_type == 'pch':
-                    base_bias = vdd + vgs_base
-                else:
-                    base_bias = vgs_base
-                
-                if gain_cur > gain_min and bw_cur > bw_min:
-                    if metric_cur > metric_best:
-                        metric_best = metric_cur
-                        best_load_op = dict(
-                            Av = gain_cur,
-                            bw = bw_cur,
-                            casc_scale = casc_scale,
-                            casc_bias = casc_bias,
-                            base_bias = base_bias,
-                            vload_mid = vcasc_mid,
-                            load_scale = load_scale,
-                            gm_load = gm_load,
-                            gds_load = gds_load,
-                            cdd_load = cdd_load,
-                            metric_load = metric_best,
-                            )
-                        print("New GBW/I Best = %f MHz/µA" % (round(metric_best/1e12,2)))
-                        print("Updated Av Best = %f" % (gain_cur))
-                        print("Updated BW Best = %f MHz" % (round(bw_cur/1e6,2)))
-                
+        gm_in_base = input_op['gm_in']
+        gm_in_casc = input_op['gm_casc']
+        gds_in_base = input_op['gds_in']
+        gds_in_casc = input_op['gds_casc']
+        ibias_in = input_op['ibias']
+        gds_in = input_op['gds_in']
+        cgg_in = input_op['cgg_casc']
+        cdd_in = cgg_in * gen_params['cdd_cgg_ratio']
+        
+        def vgs_base_search_fun(vgs_base, vcasc_mid, casc_scale, vg_casc, vsource):
+            vgs_casc = vg_casc - vcasc_mid
+            vds_casc = voutcm - vcasc_mid
+            vbs_casc = vb - vcasc_mid
+            vds_base = vcasc_mid - vsource
+            vbs_base = 0
+            
+            ids_casc = ib_fun([vbs_casc,vgs_casc,vds_casc])[0]*casc_scale
+            ids_base = ib_fun([vbs_base,vgs_base,vds_base])[0]
+            
+            return ids_casc - ids_base
+        
+        
+        
+        for vds_base in vds_base_val_list:
+            vcasc_mid = vs + vds_base
+            for casc_scale in casc_scale_list:
+                for casc_bias in casc_bias_list:
+                    try:
+                        vgs_base = sciopt.brentq(vgs_base_search_fun, vgs_base_min, vgs_base_max, args=(vcasc_mid,casc_scale,casc_bias,vs,))
+                    except ValueError:
+                        continue
+                    vgs_casc = casc_bias - vcasc_mid
+                    vds_casc = voutcm - vcasc_mid
+                    vbs_casc = vb - vcasc_mid
+                    vds_base = vcasc_mid - vs
+                    vbs_base = 0
+                    
+                    ibias_base = ib_fun([vbs_base,vgs_base,vds_base])[0]
+                    load_scale = ibias_in/ibias_base
+                    
+                    gm_base = gm_fun([vbs_base,vgs_base,vds_base])[0]
+                    gds_base = gds_fun([vbs_base,vgs_base,vds_base])[0]
+                    cdd_base = cgg_fun([vbs_base,vgs_base,vds_base])[0] * gen_params['cdd_cgg_ratio']
+                    
+                    gm_casc = gm_fun([vbs_casc,vgs_casc,vds_casc])[0] * casc_scale
+                    gds_casc = gds_fun([vbs_casc,vgs_casc,vds_casc])[0] * casc_scale
+                    cdd_casc = cgg_fun([vbs_casc,vgs_casc,vds_casc])[0] * gen_params['cdd_cgg_ratio'] * casc_scale
+                    
+                    gm_load = gm_base * load_scale
+                    gds_load = gds_base * gds_casc / (gds_base + gds_casc + gm_casc) * load_scale
+                    cdd_load = cdd_casc * load_scale
+                    
+                    bw_cur = (gds_load + gds_in) / (cdd_load + cdd_in) / 2 / np.pi
+                    gain_cur = gm_in_base / (gds_load + gds_in)
+                    
+                    metric_cur = gain_cur * bw_cur / ibias_in
+                    
+                    if load_type == 'pch':
+                        base_bias = vdd + vgs_base
+                    else:
+                        base_bias = vgs_base
+                    
+                    if gain_cur > gain_min and bw_cur > bw_min:
+                        if metric_cur > metric_best:
+                            metric_best = metric_cur
+                            best_load_op = dict(
+                                Av = gain_cur,
+                                bw = bw_cur,
+                                casc_scale = casc_scale,
+                                casc_bias = casc_bias,
+                                base_bias = base_bias,
+                                vload_mid = vcasc_mid,
+                                load_scale = load_scale,
+                                lch_load = lch_load,
+                                gm_load = gm_load,
+                                gds_load = gds_load,
+                                cdd_load = cdd_load,
+                                metric_load = metric_best,
+                                )
+                            print("New GBW/I Best = %f MHz/µA" % (round(metric_best/1e12,2)))
+                            print("Updated Av Best = %f" % (gain_cur))
+                            print("Updated BW Best = %f MHz" % (round(bw_cur/1e6,2)))
+                    if gain_cur > gain_max:
+                        gain_max = gain_cur
+                    if bw_cur > bw_max:
+                        bw_max = bw_cur
+    print("Load Av Best = %f" % ((gain_max)))
+    print("Load BW Best = %f MHz" % (round(bw_max/1e6,2)))
     return best_load_op
 
-def design_amp(amp_specs, gen_params, input_op, load_op):
+def stage1_telescopic_amplifier_design_amp(amp_specs, gen_params, input_op, load_op):
 
     vnoise_input_referred_max = amp_specs['vnoise_input_referred']
     bw_min = amp_specs['bw_min']
@@ -482,7 +499,7 @@ def design_amp(amp_specs, gen_params, input_op, load_op):
         )
     return amplifier_op
     
-def design_tail(database, amp_specs, gen_params, amplifier_op):
+def stage1_telescopic_amplifier_design_tail(database, amp_specs, gen_params, amplifier_op):
     
     vdd = amp_specs['vdd']
     vtail = amplifier_op['vtail']
@@ -704,7 +721,7 @@ class TbParams:
     CMFB_gain = h.Param(dtype=h.Prefixed, desc="Common Mode Feedback Gain (V/V)", default = 1 * KILO)
 
 @h.generator
-def AmplifierTb(params: TbParams) -> h.Module:
+def AmplifierTbTran(params: TbParams) -> h.Module:
     
     tb = h.sim.tb("TelescopicAmplifierTb")
     tb.VDD = VDD = h.Signal()
@@ -754,44 +771,79 @@ def AmplifierTb(params: TbParams) -> h.Module:
         VDD=VDD,
         VSS=tb.VSS)
     return tb
+
+@h.generator
+def AmplifierTbAc(params: TbParams) -> h.Module:
+    
+    tb = h.sim.tb("TelescopicAmplifierTb")
+    tb.VDD = VDD = h.Signal()
+    tb.vvdd = Vdc(Vdc.Params(dc=params.pvt.v,ac=(0*m)))(p=VDD, n=tb.VSS)
+    
+    tb.v_tail = h.Signal()
+    #tb.v_tail_src = Vdc(Vdc.Params(dc=(params.dut.v_tail),ac=(0*m)))(p=tb.v_tail, n=tb.VSS)
+    
+    tb.v_pcasc = h.Signal()
+    tb.v_pcasc_src = Vdc(Vdc.Params(dc=(params.dut.v_pcasc),ac=(0*m)))(p=tb.v_pcasc, n=tb.VSS)
+    
+    tb.v_ncasc = h.Signal()
+    tb.v_ncasc_src = Vdc(Vdc.Params(dc=(params.dut.v_ncasc),ac=(0*m)))(p=tb.v_ncasc, n=tb.VSS)
+    
+    tb.v_load = h.Signal()
+    tb.voutcm_ideal = h.Signal()
+    tb.v_load_src = Vdc(Vdc.Params(dc=(params.dut.v_load)))(p=tb.v_load, n=tb.VSS)
+    tb.v_outcm_ideal_src = Vdc(Vdc.Params(dc=(params.dut.voutcm_ideal),ac=(0*m)))(p=tb.voutcm_ideal, n=tb.VSS)
+    
+    # Input-driving balun
+    tb.inp = Diff()
+    tb.inpgen = Vdc(Vdc.Params(dc=(params.vc),ac=(500*m)))(p=tb.inp.p, n=tb.VSS)
+    tb.inngen = Vdc(Vdc.Params(dc=(params.vc),ac=(-500*m)))(p=tb.inp.n, n=tb.VSS)
+    
+    # Output & Load Caps
+    tb.out = Diff()
+    tb.CMSense = h.Signal()
+    Cload = C(C.Params(c=params.cl))
+    Ccmfb = C(C.Params(c=100 * f))
+    Rload = R(R.Params(r=params.rcm))
+    tb.clp = Cload(p=tb.out.p, n=tb.VSS)
+    tb.cln = Cload(p=tb.out.n, n=tb.VSS)
+    tb.ccmfb = Ccmfb(p=tb.CMSense, n=tb.VSS)
+    tb.rcmp = Rload(p=tb.out.p, n=tb.CMSense)
+    tb.rcmn = Rload(p=tb.out.n, n=tb.CMSense)
+    tb.cmfb_src = Vcvs(Vcvs.Params(gain=params.CMFB_gain))(p=tb.v_tail, n=tb.VSS, cp=tb.CMSense, cn=tb.voutcm_ideal)
+    
+    # Create the Telescopic Amplifier DUT
+    tb.dut = create_module(params.dut)(
+        v_in=tb.inp,
+        v_out=tb.out,
+        v_tail=tb.v_tail,
+        v_ncasc=tb.v_ncasc,
+        v_pcasc=tb.v_pcasc,
+        v_load=tb.v_load,
+        VDD=VDD,
+        VSS=tb.VSS)
+    return tb
     
     
-def run_main():
+def generate_stage1_telescopic_amplifier(amp_specs):
 
     nch_db_filename = "database_nch.npy"
     nch_lvt_db_filename = "database_nch_lvt.npy"
     pch_db_filename = "database_pch.npy"
     pch_lvt_db_filename = "database_pch_lvt.npy"
-
-    amp_specs = dict(
-        in_type='nch_lvt',
-        tail_type='nch_lvt',
-        load_type='pch',
-        cload=100e-15,
-        rload=100e3,
-        vdd=1.8,
-        vstar_in = 150e-3,
-        vincm=1.1,
-        voutcm=0.9,
-        vds_tail_min=0.25,
-        gain_min=60,
-        bw_min=10e6,
-        vnoise_input_referred=10e-9,
-        )
     
     gen_params = dict(
         tail_vstar_vds_margin = 50e-3,
         vgs_sweep_res = 5e-3,
         vds_sweep_res = 15e-3,
         casc_scale_min = 0.5,
-        casc_scale_max = 2,
+        casc_scale_max = 3,
         casc_scale_step = 0.5,
         casc_bias_step = 10e-3,
         gamma = 1,
-        cdd_cgg_ratio = 1.5,
+        cdd_cgg_ratio = 1.1,
         lch_in = 0.15,
         lch_tail = 0.5,
-        lch_load = 0.5,
+        lch_load = [0.15, 0.5, 1],
         )
     
     if amp_specs['in_type'] == 'nch':
@@ -827,16 +879,16 @@ def run_main():
     
     amp_specs['gm_id_in'] = 2/amp_specs['vstar_in']
 
-    input_op = design_input(database_in,amp_specs,gen_params)
-    load_op = design_load(database_load,amp_specs,gen_params,input_op)
+    input_op = stage1_telescopic_amplifier_design_input(database_in,amp_specs,gen_params)
+    load_op = stage1_telescopic_amplifier_design_load(database_load,amp_specs,gen_params,input_op)
     print('input op:')
     pprint.pprint(input_op)
     print('load op:')
     pprint.pprint(load_op)
-    amplifier_op = design_amp(amp_specs,gen_params,input_op,load_op)
+    amplifier_op = stage1_telescopic_amplifier_design_amp(amp_specs,gen_params,input_op,load_op)
     print('amplifier op:')
     pprint.pprint(amplifier_op)
-    tail_op = design_tail(database_tail,amp_specs, gen_params, amplifier_op)
+    tail_op = stage1_telescopic_amplifier_design_tail(database_tail,amp_specs, gen_params, amplifier_op)
     print('tail op:')
     pprint.pprint(tail_op)
     
@@ -854,8 +906,8 @@ def run_main():
     ampParams=TelescopicAmpParams(
         in_base_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_in_base'])), l=gen_params['lch_in'], nf=int(np.round(amplifier_op['scale_in_base']))),
         in_casc_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_in_casc'])), l=gen_params['lch_in'], nf=int(np.round(amplifier_op['scale_in_casc']))),
-        load_base_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_load_base'])), l=gen_params['lch_load'], nf=int(np.round(amplifier_op['scale_load_base']))),
-        load_casc_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_load_casc'])), l=gen_params['lch_load'], nf=int(np.round(amplifier_op['scale_load_casc']))),
+        load_base_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_load_base'])), l=load_op['lch_load'], nf=int(np.round(amplifier_op['scale_load_base']))),
+        load_casc_pair_params = MosParams(w= 500 * m * int(np.round(amplifier_op['scale_load_casc'])), l=load_op['lch_load'], nf=int(np.round(amplifier_op['scale_load_casc']))),
         tail_params = MosParams(w= 500 * m * int(np.round(tail_op['scale_tail'])), l=gen_params['lch_tail'], nf=int(np.round(tail_op['scale_tail']))),
         in_type = amp_specs['in_type'],
         load_type = amp_specs['load_type'],
@@ -872,15 +924,14 @@ def run_main():
 
     # Create our simulation input
     @hs.sim
-    class TelescopicAmplifierSim:
-        tb = AmplifierTb(params)
+    class TelescopicAmplifierTranSim:
+        tb = AmplifierTbTran(params)
         tr = hs.Tran(tstop=300 * n, tstep=1*n)
 
     # Add the PDK dependencies
-    # TelescopicAmplifierSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
-    TelescopicAmplifierSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
-    TelescopicAmplifierSim.literal(".save all")
-    results = TelescopicAmplifierSim.run(sim_options)
+    TelescopicAmplifierTranSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
+    TelescopicAmplifierTranSim.literal(".save all")
+    results = TelescopicAmplifierTranSim.run(sim_options)
     tran_results = results.an[0].data
     t = tran_results['time']
     v_out_diff = tran_results['v(xtop.out_p)'] - tran_results['v(xtop.out_n)']
@@ -898,8 +949,124 @@ def run_main():
     ax[0].plot(t, v_in_cm)
     ax[1].plot(t, v_out_cm)
     
+    # Create our simulation input
+    @hs.sim
+    class TelescopicAmplifierAcSim:
+        tb = AmplifierTbAc(params)
+        myac = hs.Ac(sweep=LogSweep(1e1, 1e11, 10))
+    
+    # Add the PDK dependencies
+    TelescopicAmplifierAcSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
+    TelescopicAmplifierAcSim.literal(".save all")
+    results = TelescopicAmplifierAcSim.run(sim_options)
+    ac_results = results.an[0].data
+    v_out_diff_ac = ac_results['v(xtop.out_p)'] - ac_results['v(xtop.out_n)']
+    f = np.logspace(start=1, stop=11, num=101, endpoint=True)
+    f_ax = np.logspace(start=1, stop=11, num=11, endpoint=True)
+    f3db_idx = np.squeeze(np.where(abs(v_out_diff_ac) < np.max(abs(v_out_diff_ac))/np.sqrt(2)))[0]
+    fgbw_idx = np.squeeze(np.where(abs(v_out_diff_ac) < 1))[0]
+    f3db = f[f3db_idx]
+    fgbw = f[fgbw_idx]
+    Avdc = np.max(abs(v_out_diff_ac))
+    v_out_diff_ac_dB = 20 * np.log10(abs(v_out_diff_ac))
+    v_out_diff_ac_phase = (np.angle(v_out_diff_ac) % (2*np.pi) - 2*np.pi) * 180 / np.pi
+    PM_ac = 180 + v_out_diff_ac_phase[fgbw_idx]
+    fig, ax = plt.subplots(2, sharex=True)
+    ax[0].semilogx(f, v_out_diff_ac_dB)
+    ax[0].grid(color='black', linestyle='--', linewidth=0.5)
+    ax[0].grid(visible=True, which="both")
+    ax[0].set_xticks(f_ax)
+    ax[1].semilogx(f, v_out_diff_ac_phase)
+    ax[1].grid(color='black', linestyle='--', linewidth=0.5)
+    ax[1].grid(visible=True, which="both")
+    ax[1].set_xticks(f_ax)
     plt.show()
+    print("Av (AC Sim) = %f" % ((Avdc)))
+    print("BW (AC Sim) = %f MHz" % (round(f3db/1e6,2)))
+    print("GBW (AC Sim) = %f MHz" % (round(fgbw/1e6,2)))
+    print("PM (AC Sim) = %f degrees" % PM_ac)
+    
+    ampResults = dict(
+        Av = Avdc,
+        bw = f3db,
+        gbw = fgbw,
+        pm = PM_ac,
+        )
+    
+    return ampParams, ampResults
+   
+def generate_telescopic_amp():
+    two_stage_amp_specs = dict(
+        stage1_in_type='nch_lvt',
+        stage1_tail_type='nch_lvt',
+        stage1_load_type='pch',
+        stage1_vstar_in = 200e-3,
+        stage1_vincm=1.1,
+        stage1_voutcm=1,
+        stage1_vds_tail_min=0.25,
+        stage1_gain_min=90,
+        stage1_input_stage_gain_min=200,
+        stage1_bw_min=60e6,
+        
+        stage2_in_type='nch_lvt',
+        stage2_load_type='pch',
+        stage2_voutcm=1.1,
+        
+        bw_min = 10e6,
+        gain_min = 1000,
+        vnoise_input_referred=10e-9,
+        
+        cload=1000e-15,
+        rload=100e3,
+        vdd=1.8,
+        )
+    
+    stage1_telescopic_amp_specs = dict(
+        in_type=two_stage_amp_specs['stage1_in_type'],
+        tail_type=two_stage_amp_specs['stage1_tail_type'],
+        load_type=two_stage_amp_specs['stage1_load_type'],
+        cload=100e-15,
+        vdd=two_stage_amp_specs['vdd'],
+        vstar_in = two_stage_amp_specs['stage1_vstar_in'],
+        vincm=two_stage_amp_specs['stage1_vincm'],
+        voutcm=two_stage_amp_specs['stage1_voutcm'],
+        vds_tail_min=two_stage_amp_specs['stage1_vds_tail_min'],
+        gain_min=two_stage_amp_specs['stage1_gain_min'],
+        input_stage_gain_min=two_stage_amp_specs['stage1_input_stage_gain_min'],
+        selfbw_min=two_stage_amp_specs['stage1_bw_min'],
+        bw_min=two_stage_amp_specs['stage1_bw_min'],
+        vnoise_input_referred=two_stage_amp_specs['vnoise_input_referred'] * (two_stage_amp_specs['gain_min']/(two_stage_amp_specs['stage1_input_stage_gain_min'] + two_stage_amp_specs['gain_min'])),
+        )
+    
+    telescopic_amp_params, telescopic_amp_results = generate_stage1_telescopic_amplifier(stage1_telescopic_amp_specs)
+    
+if __name__ == '__main__':
+    generate_telescopic_amp()
     breakpoint()
 
-if __name__ == '__main__':
-    run_main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
