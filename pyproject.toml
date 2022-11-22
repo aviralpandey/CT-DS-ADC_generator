@@ -1,0 +1,18 @@
+[tool.poetry]
+authors = ["Cem Yalcin, Aviral Pandey, Dan Fritchman"]
+description = ""
+name = "adc"
+version = "0.1.0"
+
+[tool.poetry.dependencies]
+hdl21 = ">=2.0"
+pydantic = ">=1.9"
+python = ">=3.7,<3.11"
+
+[tool.poetry.dev-dependencies]
+black = "22.6.0"
+pytest = "7.1.2"
+
+[build-system]
+build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core>=1.0.0"]
