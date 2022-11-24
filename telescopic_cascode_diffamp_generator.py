@@ -1463,8 +1463,10 @@ class TwoStageTbParams:
     vd = h.Param(dtype=h.Prefixed, desc="Differential Voltage (V)", default=1 * m)
     vc = h.Param(dtype=h.Prefixed, desc="Common-Mode Voltage (V)", default=1200 * m)
     cl = h.Param(dtype=h.Prefixed, desc="Load Cap (Single-Ended) (F)", default=100 * f)
+    ccm = h.Param(dtype=h.Prefixed, desc="Common Mode Sensing Capacitor (F)", default = 100 * f)
     rcm = h.Param(dtype=h.Prefixed, desc="Common Mode Sensing Resistor (Ω)", default = 1 * G)
-    CMFB_gain = h.Param(dtype=h.Prefixed, desc="Common Mode Feedback Gain (V/V)", default = 1 * KILO)
+    CMFB_gain_stage1 = h.Param(dtype=h.Prefixed, desc="Common Mode Feedback Gain (V/V)", default = 0.1 * KILO)
+    CMFB_gain_stage2 = h.Param(dtype=h.Prefixed, desc="Common Mode Feedback Gain (V/V)", default = 1 * KILO)
 
 @h.generator
 def TwoStageAmpTbTran(params: TwoStageTbParams) -> h.Module:
@@ -1504,7 +1506,7 @@ def TwoStageAmpTbTran(params: TwoStageTbParams) -> h.Module:
     tb.CMSense_stage1 = h.Signal()
     tb.CMSense_stage2 = h.Signal()
     Cload = C(C.Params(c=params.cl))
-    Ccmfb = C(C.Params(c=100 * f))
+    Ccmfb = C(C.Params(c=params.ccm))
     Rload = R(R.Params(r=params.rcm))
     tb.clp = Cload(p=tb.out.p, n=tb.VSS)
     tb.cln = Cload(p=tb.out.n, n=tb.VSS)
@@ -1514,8 +1516,8 @@ def TwoStageAmpTbTran(params: TwoStageTbParams) -> h.Module:
     tb.rcmn_stage1 = Rload(p=tb.out_stage1.n, n=tb.CMSense_stage1)
     tb.rcmp_stage2 = Rload(p=tb.out.p, n=tb.CMSense_stage2)
     tb.rcmn_stage2 = Rload(p=tb.out.n, n=tb.CMSense_stage2)
-    tb.cmfb_stage1_src = Vcvs(Vcvs.Params(gain=params.CMFB_gain))(p=tb.v_load_stage1, n=tb.VSS, cp=tb.CMSense_stage1, cn=tb.voutcm_stage1_ideal)
-    tb.cmfb_stage2_src = Vcvs(Vcvs.Params(gain=params.CMFB_gain))(p=tb.v_load_stage2, n=tb.VSS, cp=tb.CMSense_stage2, cn=tb.voutcm_stage2_ideal)
+    tb.cmfb_stage1_src = Vcvs(Vcvs.Params(gain=params.CMFB_gain_stage1))(p=tb.v_load_stage1, n=tb.VSS, cp=tb.CMSense_stage1, cn=tb.voutcm_stage1_ideal)
+    tb.cmfb_stage2_src = Vcvs(Vcvs.Params(gain=params.CMFB_gain_stage2))(p=tb.v_load_stage2, n=tb.VSS, cp=tb.CMSense_stage2, cn=tb.voutcm_stage2_ideal)
     
     # Create the Telescopic Amplifier DUT
     tb.dut = two_stage_amplifier(params.dut)(
@@ -1569,7 +1571,7 @@ def TwoStageAmpTbAc(params: TwoStageTbParams) -> h.Module:
     tb.CMSense_stage1 = h.Signal()
     tb.CMSense_stage2 = h.Signal()
     Cload = C(C.Params(c=params.cl))
-    Ccmfb = C(C.Params(c=100 * f))
+    Ccmfb = C(C.Params(c=params.ccm))
     Rload = R(R.Params(r=params.rcm))
     tb.clp = Cload(p=tb.out.p, n=tb.VSS)
     tb.cln = Cload(p=tb.out.n, n=tb.VSS)
@@ -1579,8 +1581,8 @@ def TwoStageAmpTbAc(params: TwoStageTbParams) -> h.Module:
     tb.rcmn_stage1 = Rload(p=tb.out_stage1.n, n=tb.CMSense_stage1)
     tb.rcmp_stage2 = Rload(p=tb.out.p, n=tb.CMSense_stage2)
     tb.rcmn_stage2 = Rload(p=tb.out.n, n=tb.CMSense_stage2)
-    tb.cmfb_stage1_src = Vcvs(Vcvs.Params(gain=params.CMFB_gain))(p=tb.v_load_stage1, n=tb.VSS, cp=tb.CMSense_stage1, cn=tb.voutcm_stage1_ideal)
-    tb.cmfb_stage2_src = Vcvs(Vcvs.Params(gain=params.CMFB_gain))(p=tb.v_load_stage2, n=tb.VSS, cp=tb.CMSense_stage2, cn=tb.voutcm_stage2_ideal)
+    tb.cmfb_stage1_src = Vcvs(Vcvs.Params(gain=params.CMFB_gain_stage1))(p=tb.v_load_stage1, n=tb.VSS, cp=tb.CMSense_stage1, cn=tb.voutcm_stage1_ideal)
+    tb.cmfb_stage2_src = Vcvs(Vcvs.Params(gain=params.CMFB_gain_stage2))(p=tb.v_load_stage2, n=tb.VSS, cp=tb.CMSense_stage2, cn=tb.voutcm_stage2_ideal)
     
     # Create the Telescopic Amplifier DUT
     tb.dut = two_stage_amplifier(params.dut)(
