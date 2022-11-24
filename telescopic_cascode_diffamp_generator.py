@@ -1602,7 +1602,7 @@ def generate_two_stage_ota():
         stage1_tail_type='nch_lvt',
         stage1_load_type='pch',
         stage1_vstar_in = 200e-3,
-        stage1_vincm=0.9,
+        stage1_vincm=1,
         stage1_voutcm=0.9,
         stage1_vds_tail_min=0.25,
         stage1_gain_min=100,
@@ -1611,7 +1611,7 @@ def generate_two_stage_ota():
         
         stage2_in_type='nch',
         stage2_load_type='pch',
-        stage2_voutcm=0.9,
+        stage2_voutcm=1,
         
         bw_min = 5e5,
         gain_min = 500,
