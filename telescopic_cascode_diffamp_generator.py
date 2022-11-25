@@ -1463,9 +1463,9 @@ class TwoStageTbParams:
     vd = h.Param(dtype=h.Prefixed, desc="Differential Voltage (V)", default=1 * m)
     vc = h.Param(dtype=h.Prefixed, desc="Common-Mode Voltage (V)", default=1200 * m)
     cl = h.Param(dtype=h.Prefixed, desc="Load Cap (Single-Ended) (F)", default=100 * f)
-    ccm = h.Param(dtype=h.Prefixed, desc="Common Mode Sensing Capacitor (F)", default = 100 * f)
+    ccm = h.Param(dtype=h.Prefixed, desc="Common Mode Sensing Capacitor (F)", default = 1 * f)
     rcm = h.Param(dtype=h.Prefixed, desc="Common Mode Sensing Resistor (Ω)", default = 1 * G)
-    CMFB_gain_stage1 = h.Param(dtype=h.Prefixed, desc="Common Mode Feedback Gain (V/V)", default = 0.1 * KILO)
+    CMFB_gain_stage1 = h.Param(dtype=h.Prefixed, desc="Common Mode Feedback Gain (V/V)", default = 10 * KILO)
     CMFB_gain_stage2 = h.Param(dtype=h.Prefixed, desc="Common Mode Feedback Gain (V/V)", default = 1 * KILO)
 
 @h.generator
