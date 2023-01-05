@@ -16,6 +16,7 @@ scipy = "*"
 nest_asyncio = "*"
 
 [tool.poetry.dev-dependencies]
+pre-commit = "*"
 black = "22.6.0"
 pytest = "7.1.2"
 
