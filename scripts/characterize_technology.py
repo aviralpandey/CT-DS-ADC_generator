@@ -3,7 +3,7 @@ from pathlib import Path
 import hdl21 as h
 from hdl21.primitives import Vdc
 from vlsirtools.spice import SimOptions, SupportedSimulators, ResultFormat
-import sitepdks, sky130
+import sky130, sitepdks as _
 
 from matplotlib import pyplot as plt
 from matplotlib import cm as cm
