@@ -5,9 +5,9 @@ name = "adc"
 version = "0.1.0"
 
 [tool.poetry.dependencies]
-hdl21 = "3.0.dev0"
-vlsirtools = "3.0.dev0"
-sky130-hdl21 = "3.0.dev0"
+hdl21 = "3.0.dev2"
+vlsirtools = "3.0.dev2"
+sky130-hdl21 = "3.0.dev2"
 
 pydantic = ">=1.9"
 python = ">=3.7,<3.11"
