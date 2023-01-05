@@ -158,14 +158,3 @@ nch_lvt_db_filename = "database_nch_lvt.npy"
 pch_db_filename = "database_pch.npy"
 pch_lvt_db_filename = "database_pch_lvt.npy"
 
-
-def test_db():
-    db = MosDB()
-    for filename in [nch_db_filename, nch_lvt_db_filename, pch_db_filename, pch_lvt_db_filename]:
-        data = np.load(filename, allow_pickle=True)
-        db.build(filename)
-    breakpoint()
-
-
-if __name__ == '__main__':
-    test_db()

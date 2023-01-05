@@ -1,6 +1,5 @@
 
 from pathlib import Path
-import os
 
 import hdl21 as h
 from hdl21.primitives import Vdc
@@ -23,8 +22,9 @@ sim_options = SimOptions(
     simulator=SupportedSimulators.NGSPICE,
 )
 
-tb_prefix = 'tb_mos_ibias'
+data_dir = Path("./data") # Path to the repo-level `data/` directory 
 np_filename = 'database_nch.npy'
+tb_prefix = 'tb_mos_ibias'
 mos_list = ['nch']
 w_unit = 0.5
 lch_list = [0.15, 1]
@@ -162,7 +162,7 @@ def run_characterization_sims(np_filename):
         "cgg" : cgg,
         "cdd" : cdd,
         }
-    np.save(np_filename,results)
+    np.save(data_dir / np_filename,results)
     return results
 
 def compute_small_signal_parameters(filename,plot_results=True):
@@ -188,7 +188,6 @@ def compute_small_signal_parameters(filename,plot_results=True):
 
 if __name__ == '__main__':
     run_characterization_sims(np_filename)
-    
     compute_small_signal_parameters(np_filename)
     
     
