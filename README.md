@@ -1,10 +1,10 @@
 # CT-DS-ADC_generator
+
 A Continuous Time (CT) Delta Sigma (DS) ADC Generator 
 
-The (I think?) important things to run in a GitHub codespace:
+Installation: 
 
 ```
-conda activate base
 conda install -y -c litex-hub open_pdks.sky130a
 
 git clone git@github.com:dan-fritchman/Hdl21.git
@@ -18,7 +18,6 @@ git checkout 2079c44fd7b34023c737a7c01ea624b50289524f
 cd ..
 python scripts/manage.py install 
 
-conda install -y poetry
-conda upgrade pip
+conda upgrade -y pip
 pip install -e ".[dev]"
 ```

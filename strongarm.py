@@ -11,10 +11,7 @@ from hdl21.sim import Sim, LogSweep
 from hdl21.prefix import m, µ, f, n, PICO
 from hdl21.primitives import Vdc, Idc, C, Vpulse
 from vlsirtools.spice import SimOptions, SupportedSimulators, ResultFormat
-
-
-CONDA_PREFIX = os.environ.get("CONDA_PREFIX", None)
-
+import sitepdks, sky130 
 
 sim_options = SimOptions(
     rundir=Path("./scratch"),
@@ -326,7 +323,7 @@ def test_comparator_sim():
         tr = hs.Tran(tstop=12 * n, tstep=100*PICO)
 
     # Add the PDK dependencies
-    ComparatorSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
+    ComparatorSim.lib(sky130.install.model_lib, 'tt')
     ComparatorSim.literal(".option METHOD=Gear")
 
     # Run Spice, save important results

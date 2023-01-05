@@ -939,7 +939,7 @@ def generate_stage1_telescopic_amplifier(amp_specs):
         tr = hs.Tran(tstop=3000 * n, tstep=1*n)
 
     # Add the PDK dependencies
-    # TelescopicAmplifierSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
+    # TelescopicAmplifierSim.lib(sky130.install.model_lib, 'tt')
     TelescopicAmplifierSim.lib(sky130.install.model_lib, 'tt')
     TelescopicAmplifierSim.literal(".save all")
     results = TelescopicAmplifierSim.run(sim_options)
@@ -967,7 +967,7 @@ def generate_stage1_telescopic_amplifier(amp_specs):
         myac = hs.Ac(sweep=LogSweep(1e1, 1e11, 10))
     
     # Add the PDK dependencies
-    TelescopicAmplifierAcSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
+    TelescopicAmplifierAcSim.lib(sky130.install.model_lib, 'tt')
     TelescopicAmplifierAcSim.literal(".save all")
     results = TelescopicAmplifierAcSim.run(sim_options)
     ac_results = results.an[0].data
@@ -1266,7 +1266,7 @@ def stage2_common_source_amplifier_design_and_scale_amp(database_in,database_loa
         tr = hs.Tran(tstop=3000 * n, tstep=1*n)
 
     # Add the PDK dependencies
-    Stage2AmpTranSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
+    Stage2AmpTranSim.lib(sky130.install.model_lib, 'tt')
     Stage2AmpTranSim.literal(".save all")
     results = Stage2AmpTranSim.run(sim_options)
     tran_results = results.an[0].data
@@ -1685,7 +1685,7 @@ def generate_two_stage_ota():
         tr = hs.Tran(tstop=3000 * n, tstep=1*n)
 
     # Add the PDK dependencies
-    TwoStageAmpTranSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
+    TwoStageAmpTranSim.lib(sky130.install.model_lib, 'tt')
     TwoStageAmpTranSim.literal(".save all")
     results = TwoStageAmpTranSim.run(sim_options)
     tran_results = results.an[0].data
@@ -1724,7 +1724,7 @@ def generate_two_stage_ota():
         myac = hs.Ac(sweep=LogSweep(1e1, 1e11, 10))
     
     # Add the PDK dependencies
-    TwoStageAmpAcSim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
+    TwoStageAmpAcSim.lib(sky130.install.model_lib, 'tt')
     TwoStageAmpAcSim.literal(".save all")
     results = TwoStageAmpAcSim.run(sim_options)
     ac_results = results.an[0].data

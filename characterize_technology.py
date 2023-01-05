@@ -5,17 +5,17 @@ import os
 import hdl21 as h
 from hdl21.primitives import Vdc
 from vlsirtools.spice import SimOptions, SupportedSimulators, ResultFormat
+import sitepdks, sky130
 
 from matplotlib import pyplot as plt
 from matplotlib import cm as cm
-
 import numpy as np
 import scipy.interpolate
 
 import nest_asyncio
 nest_asyncio.apply()
 
-CONDA_PREFIX = os.environ.get("CONDA_PREFIX", None)
+
 
 sim_options = SimOptions(
     rundir=Path("./scratch"),
@@ -115,7 +115,7 @@ def run_characterization_sims(np_filename):
                             tb.VGS_src = Vdc(Vdc.Params(dc=str(-vgs)))(p=tb.VGS, n=tb.VSS)
                             tb.VBS_src = Vdc(Vdc.Params(dc=str(-vbs)))(p=tb.VBS, n=tb.VSS)
                         sim = h.sim.Sim(tb=tb)
-                        sim.lib(f"{CONDA_PREFIX}/share/pdk/sky130A/libs.tech/ngspice/sky130.lib.spice", 'tt')
+                        sim.lib(sky130.install.model_lib, 'tt')
                         sim.op()
                         if mos_type == "nch":
                             sim.literal(".save @m.xtop.xdut.msky130_fd_pr__nfet_01v8_lvt[gm]")
