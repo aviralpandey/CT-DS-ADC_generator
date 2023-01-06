@@ -1,8 +1,5 @@
 import numpy as np
-from pathlib import Path
-
-
-data_dir = Path("./data")  # Path to the repo-level `data/` directory
+from adc import data_dir
 
 
 def test_db():
@@ -22,7 +19,9 @@ def test_db():
         pch_db_filename,
         pch_lvt_db_filename,
     ]:
-        data = np.load(data_dir / filename, allow_pickle=True)
+        data = np.load(
+            data_dir / filename, allow_pickle=True
+        )  # FIXME: does this do anything?
         db.build(data_dir / filename)
 
 

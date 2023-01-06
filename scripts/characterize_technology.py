@@ -10,18 +10,19 @@ from matplotlib import cm as cm
 import numpy as np
 import scipy.interpolate
 
+from adc import data_dir, scratch
+
 import nest_asyncio
 
 nest_asyncio.apply()
 
 
 sim_options = SimOptions(
-    rundir=Path("./scratch"),
+    rundir=scratch,
     fmt=ResultFormat.SIM_DATA,
     simulator=SupportedSimulators.NGSPICE,
 )
 
-data_dir = Path("./data")  # Path to the repo-level `data/` directory
 np_filename = "database_nch.npy"
 tb_prefix = "tb_mos_ibias"
 mos_list = ["nch"]
@@ -372,7 +373,6 @@ def compute_small_signal_parameters(filename, plot_results=True):
         ax = fig.gca(projection="3d")
         vds, vgs = np.meshgrid(vds_raw, vgs_raw)
         ax.plot_surface(vds, vgs, gm_raw, cmap=cm.jet)
-
 
 
 if __name__ == "__main__":

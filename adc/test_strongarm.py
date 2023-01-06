@@ -16,19 +16,22 @@ from hdl21.primitives import Vdc, Idc, C, Vpulse
 from vlsirtools.spice import SimOptions, SupportedSimulators, ResultFormat
 import sky130, sitepdks as _
 
-sim_options = SimOptions(
-    rundir=Path("./scratch"),
-    fmt=ResultFormat.SIM_DATA,
-    simulator=SupportedSimulators.NGSPICE,
-)
-
-# Local DUT Imports
+# Local Imports
+from . import data_dir, scratch
 from .strongarm import (
     comparator,
     ComparatorParams,
     StrongarmParams,
     MosParams,
     LatchParams,
+)
+
+strongarm_results_file = data_dir / "strongarm_results.npz"
+
+sim_options = SimOptions(
+    rundir=scratch,
+    fmt=ResultFormat.SIM_DATA,
+    simulator=SupportedSimulators.NGSPICE,
 )
 
 
@@ -176,7 +179,7 @@ def test_comparator_sim():
     results = ComparatorSim.run(sim_options)
     tran_results = results.an[0].data
     np.savez(
-        "strongarm_results.npz",
+        strongarm_results_file,
         t=tran_results["time"],
         v_out_diff=tran_results["v(xtop.out_p)"] - tran_results["v(xtop.out_n)"],
         v_in_diff=tran_results["v(xtop.inp_p)"] - tran_results["v(xtop.inp_n)"],
@@ -214,7 +217,7 @@ def extract_windows(t, clk, threshold):
 
 
 def plot_windows():
-    data = np.load("strongarm_results.npz")
+    data = np.load(strongarm_results_file)
     windows = extract_windows(data["t"], data["v_clk"], 0.7)
     for (s, e) in windows:
         plt.figure()
@@ -223,7 +226,7 @@ def plot_windows():
 
 
 def plot_data():
-    data = np.load("strongarm_results.npz")
+    data = np.load(strongarm_results_file)
     t = data["t"]
     fig, ax = plt.subplots(3, sharex=True)
     ax[0].plot(t, data["v_clk"])
@@ -243,7 +246,7 @@ def plot_data():
     plt.show()
 
 
-if __name__ == "__main__":
-    # test_comparator_sim()
-    # plot_data()
-    plot_windows()
+# if __name__ == "__main__":
+#     # test_comparator_sim()
+#     # plot_data()
+#     plot_windows()
