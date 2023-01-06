@@ -1,14 +1,20 @@
-# CT-DS-ADC_generator
+# 
+# #########################################
+# # GitHub CodeSpace Container Installation 
+# #########################################
+# 
+# To be run in the codespace, the first time 
+# Could this be part of the container build? Probably some day sure! 
+# 
 
-A Continuous Time (CT) Delta Sigma (DS) ADC Generator 
+# Conda will at times complain that "your environment is not set up for `conda activate`". 
+# If so, this `conda init` bit will set it up. 
+conda init bash
+source ~/.bashrc 
 
-Installation in the [Docker](./Dockerfile)-configured GitHub dev-container environment: 
-
-```
-# The packages containing the PDK model-files are conda-only, 
-# and hence not covered by the `pip install` below.
 conda activate base
 conda install -y -c litex-hub open_pdks.sky130a
+conda upgrade -y pip
 
 # There *should* be compatible versions of VLSIR and Hdl21 on PyPi. 
 # If not, install them from source with something like: 
@@ -23,6 +29,4 @@ conda install -y -c litex-hub open_pdks.sky130a
 ##python scripts/manage.py install 
 
 # Pip-install all the other, "normal" dependencies
-conda upgrade -y pip
 pip install -e ".[dev]"
-```

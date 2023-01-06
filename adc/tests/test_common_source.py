@@ -1,25 +1,18 @@
-from pathlib import Path
-from typing import Tuple
+from dataclasses import dataclass
 
 import hdl21 as h
 from hdl21.prefix import m, UNIT
 from hdl21.primitives import Vdc
-from vlsirtools.spice import SimOptions, SupportedSimulators, ResultFormat
 
-# Import the Hdl21 PDK package, and our "site" configuration of its installation
-import sitepdks as _
-import sky130
+# PDK Imports
+import sky130, sitepdks as _
+from ..testutils import sim_options
+
 
 # And give a few shorthand names to PDK content
 MosParams = sky130.Sky130MosParams
 nch = sky130.modules.sky130_fd_pr__nfet_01v8
 pch = sky130.modules.sky130_fd_pr__pfet_01v8
-
-sim_options = SimOptions(
-    rundir=Path("./scratch"),
-    fmt=ResultFormat.SIM_DATA,
-    simulator=SupportedSimulators.NGSPICE,
-)
 
 
 @h.paramclass
@@ -42,7 +35,13 @@ def common_source_amp_gen(params: CommonSourceParams) -> h.Module:
     return CommonSource
 
 
-def get_amp_performance(amp: h.Module) -> Tuple[float, float]:
+@dataclass
+class AmpPerformance:
+    vout_dc: float
+    dc_current: float
+
+
+def get_amp_performance(amp: h.Module) -> AmpPerformance:
     """Measure the Amplifier Output DC Voltage and Supply Current"""
     tb = h.sim.tb("CommonSourceTb")
     tb.VDD = h.Signal()
@@ -68,13 +67,16 @@ def get_amp_performance(amp: h.Module) -> Tuple[float, float]:
     vout_dc = op_results["v(xtop.vdd)"]
     dc_current = op_results["i(v.xtop.vvdd_src)"]
     vout_ac = ac_results["v(xtop.vdd)"]
-    breakpoint()
-    return vout_dc, dc_current
+    return AmpPerformance(vout_dc, dc_current)
 
 
-if __name__ == "__main__":
+def run():
     get_amp_performance(
         common_source_amp_gen(
             CommonSourceParams(MosParams(w=1 * UNIT, l=150 * m, nf=1), 1e3)
         )
     )
+
+
+def test_common_source_amp():  # Pytest entrypoint
+    run()
