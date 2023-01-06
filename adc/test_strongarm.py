@@ -241,7 +241,6 @@ def plot_data():
     ax[2].legend()
 
     plt.show()
-    breakpoint()
 
 
 if __name__ == "__main__":

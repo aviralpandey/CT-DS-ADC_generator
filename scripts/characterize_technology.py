@@ -373,7 +373,6 @@ def compute_small_signal_parameters(filename, plot_results=True):
         vds, vgs = np.meshgrid(vds_raw, vgs_raw)
         ax.plot_surface(vds, vgs, gm_raw, cmap=cm.jet)
 
-    breakpoint()
 
 
 if __name__ == "__main__":
